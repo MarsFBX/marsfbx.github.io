@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MARS FBX — 3D Artist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=DM+Mono:wght@400;500&family=Barlow+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue: #3D3DF5;
+    --blue-bright: #5B5BFF;
+    --blue-dim: #2222BB;
+    --graphite: #111116;
+    --surface: #18181F;
+    --surface2: #1F1F28;
+    --surface3: #26262F;
+    --border: rgba(255,255,255,0.07);
+    --text: #E8E8F0;
+    --muted: #7070A0;
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--graphite);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 16px;
+    overflow-x: hidden;
+    cursor: none;
+  }
+
+  /* CUSTOM CURSOR */
+  .cursor {
+    position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+    width: 12px; height: 12px;
+    background: var(--blue-bright);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+    mix-blend-mode: difference;
+  }
+  .cursor.hover { width: 36px; height: 36px; background: var(--blue); }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1.2rem 3rem;
+    background: rgba(17,17,22,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo-img { display: flex; align-items: center; }
+    text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 2.5rem; list-style: none; }
+  .nav-links a {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--blue-bright); }
+
+  /* HERO */
+  #hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 8rem 3rem 5rem;
+    position: relative; overflow: hidden;
+  }
+  .hero-grid-bg {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(61,61,245,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,61,245,0.06) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+  }
+  .hero-glow {
+    position: absolute; top: -20%; right: -10%;
+    width: 700px; height: 700px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(61,61,245,0.18) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--blue-bright);
+    letter-spacing: 0.25em;
+    margin-bottom: 1rem;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.2s forwards;
+  }
+  .hero-logo {
+    width: clamp(320px, 55vw, 700px);
+    height: auto;
+    display: block;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+    margin-bottom: 0.5rem;
+  }
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(5rem, 14vw, 12rem);
+    font-weight: 900;
+    line-height: 0.88;
+    letter-spacing: -0.01em;
+    color: #fff;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+  }
+  .hero-title .accent { color: var(--blue-bright); }
+  .hero-sub {
+    margin-top: 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    max-width: 400px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.6s forwards;
+  }
+  .hero-cta {
+    margin-top: 2.5rem;
+    display: flex; gap: 1rem; align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.8s forwards;
+  }
+  .btn {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.1em;
+    padding: 0.75rem 2rem;
+    border-radius: 2px;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: none;
+  }
+  .btn-primary {
+    background: var(--blue);
+    color: #fff;
+    border: 2px solid var(--blue);
+  }
+  .btn-primary:hover { background: var(--blue-bright); border-color: var(--blue-bright); transform: translateY(-2px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 2px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--blue-bright); color: var(--blue-bright); }
+
+  .hero-scroll-hint {
+    position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted); letter-spacing: 0.2em;
+    opacity: 0; animation: fadeUp 1s 1.2s forwards;
+  }
+  .scroll-line {
+    width: 1px; height: 40px;
+    background: linear-gradient(to bottom, var(--blue-bright), transparent);
+    animation: scrollPulse 2s ease-in-out infinite;
+  }
+
+  /* SECTION COMMON */
+  section { padding: 7rem 3rem; position: relative; }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--blue-bright);
+    letter-spacing: 0.3em;
+    margin-bottom: 0.75rem;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 3rem;
+  }
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* WORKS CAROUSEL */
+  #works { background: var(--surface); }
+  .carousel-wrap { position: relative; }
+  .carousel {
+    display: flex;
+    gap: 1.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 1rem;
+  }
+  .carousel::-webkit-scrollbar { display: none; }
+  .work-card {
+    flex: 0 0 360px;
+    scroll-snap-align: start;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.3s, border-color 0.3s;
+    cursor: none;
+  }
+  .work-card:hover { transform: translateY(-6px); border-color: var(--blue-dim); }
+  .work-thumb {
+    width: 100%; height: 240px;
+    background: var(--surface3);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .work-thumb-placeholder {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+  /* placeholder shimmer grid */
+  .work-thumb::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(61,61,245,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,61,245,0.08) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  .work-thumb img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+  .work-body { padding: 1.25rem 1.5rem 1.5rem; }
+  .work-tag {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--blue-bright); letter-spacing: 0.2em; margin-bottom: 0.5rem;
+  }
+  .work-title {
+    font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
+    color: #fff; margin-bottom: 0.5rem;
+  }
+  .work-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.6; margin-bottom: 1.2rem; }
+  .work-link {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.1em; color: var(--blue-bright); text-decoration: none;
+    border-bottom: 1px solid var(--blue-dim);
+    transition: color 0.2s, border-color 0.2s;
+    cursor: none;
+  }
+  .work-link:hover { color: #fff; border-color: #fff; }
+
+  .carousel-controls {
+    display: flex; gap: 0.75rem; margin-top: 2rem; justify-content: flex-end;
+  }
+  .carousel-btn {
+    width: 44px; height: 44px; border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-size: 1.2rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: none;
+    transition: all 0.2s;
+  }
+  .carousel-btn:hover { border-color: var(--blue-bright); color: var(--blue-bright); }
+
+  /* ABOUT / CV */
+  #about { background: var(--graphite); }
+  .about-grid {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 5rem;
+    align-items: start;
+  }
+
+  /* ID CARD */
+  .id-card {
+    background: linear-gradient(135deg, #2a2a35 0%, #1a1a24 100%);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 1.586;
+    display: flex; flex-direction: column; justify-content: space-between;
+    box-shadow: 0 0 60px rgba(61,61,245,0.15);
+  }
+  .id-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(61,61,245,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,61,245,0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .id-card-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    position: relative; z-index: 1;
+  }
+  .id-card-sys {
+    font-family: var(--font-mono); font-size: 0.55rem;
+    color: rgba(255,255,255,0.25); letter-spacing: 0.15em; line-height: 1.8;
+  }
+  .id-card-logo {
+    font-family: var(--font-display); font-weight: 900; font-size: 0.9rem;
+    color: var(--blue-bright); letter-spacing: 0.05em; text-align: right;
+  }
+  .id-card-logo span { color: rgba(255,255,255,0.3); font-size: 0.55rem; display: block; letter-spacing: 0.2em; }
+  .id-card-body {
+    display: flex; gap: 1rem; align-items: flex-end;
+    position: relative; z-index: 1;
+  }
+  .id-photo {
+    width: 80px; height: 100px;
+    background: var(--surface3);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .id-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .id-photo-placeholder {
+    font-family: var(--font-mono); font-size: 0.5rem;
+    color: var(--muted); letter-spacing: 0.1em; text-align: center; padding: 0.5rem;
+  }
+  .id-fields { flex: 1; }
+  .id-field { margin-bottom: 0.6rem; }
+  .id-field-label {
+    font-family: var(--font-mono); font-size: 0.45rem;
+    color: rgba(255,255,255,0.25); letter-spacing: 0.2em; margin-bottom: 0.1rem;
+  }
+  .id-field-value {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.95rem;
+    color: #fff; letter-spacing: 0.05em;
+  }
+  .id-field-value.big {
+    font-size: 1.2rem; color: var(--blue-bright);
+  }
+  .id-card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; z-index: 1;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 0.75rem;
+  }
+  .id-dob { font-family: var(--font-mono); font-size: 0.55rem; color: rgba(255,255,255,0.25); }
+  .id-nfc {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .id-nfc::after {
+    content: '';
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--blue);
+  }
+  .id-card-note {
+    margin-top: 1rem;
+    font-family: var(--font-mono); font-size: 0.65rem;
+    color: var(--muted); letter-spacing: 0.1em; text-align: center;
+    border: 1px dashed rgba(61,61,245,0.3);
+    border-radius: 4px; padding: 0.75rem;
+  }
+
+  /* ABOUT TEXT */
+  .about-content {}
+  .about-bio {
+    font-size: 1.05rem; color: var(--text);
+    line-height: 1.8; margin-bottom: 2.5rem;
+  }
+  .about-bio strong { color: var(--blue-bright); font-weight: 500; }
+  .skills-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .skill-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--muted); letter-spacing: 0.1em;
+  }
+  .skill-item::before {
+    content: '▸'; color: var(--blue-bright); font-size: 0.6rem;
+  }
+  .cv-stats {
+    display: flex; gap: 2rem; margin-bottom: 2.5rem;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: 1.5rem 0;
+  }
+  .cv-stat {}
+  .cv-stat-num {
+    font-family: var(--font-display); font-size: 2.5rem; font-weight: 900;
+    color: var(--blue-bright); line-height: 1;
+  }
+  .cv-stat-label {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--muted); letter-spacing: 0.15em; margin-top: 0.25rem;
+  }
+  .social-links { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .social-link {
+    font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.12em;
+    color: var(--muted); text-decoration: none;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    transition: all 0.2s;
+    cursor: none;
+  }
+  .social-link:hover { border-color: var(--blue-bright); color: var(--blue-bright); }
+
+  /* CONTACTS */
+  #contacts { background: var(--surface); }
+  .contact-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: start;
+  }
+  .contact-tagline {
+    font-family: var(--font-display); font-size: 2rem; font-weight: 700;
+    color: #fff; line-height: 1.3; margin-bottom: 1.5rem;
+  }
+  .contact-tagline .blue { color: var(--blue-bright); }
+  .contact-info { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); line-height: 2; }
+  .contact-info a { color: var(--blue-bright); text-decoration: none; }
+  .contact-info a:hover { text-decoration: underline; }
+
+  /* FORM */
+  .contact-form { display: flex; flex-direction: column; gap: 1rem; }
+  .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+  .form-label {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--muted); letter-spacing: 0.2em;
+  }
+  .form-input, .form-textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0.75rem 1rem;
+    color: var(--text);
+    font-family: var(--font-ui); font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+    cursor: none;
+  }
+  .form-input:focus, .form-textarea:focus { border-color: var(--blue); }
+  .form-textarea { resize: vertical; min-height: 120px; }
+  .form-submit {
+    align-self: flex-start;
+    font-family: var(--font-display); font-weight: 700; font-size: 1rem;
+    letter-spacing: 0.1em; padding: 0.8rem 2.5rem;
+    background: var(--blue); color: #fff;
+    border: 2px solid var(--blue); border-radius: 2px;
+    cursor: none; transition: all 0.2s;
+  }
+  .form-submit:hover { background: var(--blue-bright); border-color: var(--blue-bright); transform: translateY(-2px); }
+
+  /* FOOTER */
+  footer {
+    padding: 2rem 3rem;
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer-logo {
+    font-family: var(--font-display); font-weight: 900; font-size: 1rem;
+    color: var(--muted);
+  }
+  .footer-logo span { color: var(--blue-bright); }
+  .footer-copy { font-family: var(--font-mono); font-size: 0.6rem; color: var(--muted); letter-spacing: 0.1em; }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scrollPulse {
+    0%, 100% { opacity: 0.3; transform: scaleY(1); }
+    50% { opacity: 1; transform: scaleY(1.3); }
+  }
+
+  .reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity 0.7s, transform 0.7s;
+  }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  @media (max-width: 900px) {
+    nav { padding: 1rem 1.5rem; }
+    section { padding: 5rem 1.5rem; }
+    .about-grid { grid-template-columns: 1fr; gap: 3rem; }
+    .contact-grid { grid-template-columns: 1fr; gap: 3rem; }
+    .hero-title { font-size: clamp(4rem, 18vw, 8rem); }
+    #hero { padding: 7rem 1.5rem 4rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+
+<!-- NAV -->
+<nav>
+  <a href="#hero" class="nav-logo-img"><img src="logo.png" alt="MARS FBX" style="height: 36px; width: auto; display: block; filter: brightness(1);"></a>
+  <ul class="nav-links">
+    <li><a href="#works">WORKS</a></li>
+    <li><a href="#about">ABOUT</a></li>
+    <li><a href="#contacts">CONTACT</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="hero-glow"></div>
+  <div class="hero-eyebrow">// 3D ARTIST · CHARACTER · ENVIRONMENT · FBX</div>
+  <img src="logo.png" alt="MARS FBX" class="hero-logo">
+  <p class="hero-sub">// Создаю миры, персонажей и объекты в 3D — от концепта до финального рендера.</p>
+  <div class="hero-cta">
+    <a href="#works" class="btn btn-primary">СМОТРЕТЬ РАБОТЫ</a>
+    <a href="https://www.artstation.com/marsfbx" target="_blank" class="btn btn-ghost">ARTSTATION ↗</a>
+  </div>
+  <div class="hero-scroll-hint">
+    <span>SCROLL</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- WORKS -->
+<section id="works">
+  <div class="section-label">// 01 — SELECTED WORKS</div>
+  <h2 class="section-title reveal">ПОРТФОЛИО</h2>
+  <div class="carousel-wrap">
+    <div class="carousel" id="carousel">
+
+      <div class="work-card reveal">
+        <div class="work-thumb">
+          <img src="work1.png" alt="Stylized Handpainted Knife">
+        </div>
+        <div class="work-body">
+          <div class="work-tag">// PROP · BLENDER · SUBSTANCE PAINTER · 3DCOAT</div>
+          <div class="work-title">Stylized Handpainted Knife</div>
+          <div class="work-desc">Game-ready stylized weapon. Hand-painted albedo workflow с акцентом на силуэт, цветовой контраст и стилизованную обработку поверхности.</div>
+          <a href="https://www.artstation.com/artwork/QKvo94" target="_blank" class="work-link">ПОДРОБНЕЕ НА ARTSTATION ↗</a>
+        </div>
+      </div>
+
+      <div class="work-card reveal">
+        <div class="work-thumb">
+          <img src="work2.jpg" alt="PETEX Tactical Megaphone">
+        </div>
+        <div class="work-body">
+          <div class="work-tag">// PROP · HARD SURFACE · BLENDER · SUBSTANCE PAINTER</div>
+          <div class="work-title">PETEX Tactical Megaphone</div>
+          <div class="work-desc">Sci-fi game prop. Hard-surface моделирование, UDIM-текстурирование, стиль вдохновлён арт-дирекцией Overwatch.</div>
+          <a href="https://www.artstation.com/artwork/rlVV6L" target="_blank" class="work-link">ПОДРОБНЕЕ НА ARTSTATION ↗</a>
+        </div>
+      </div>
+
+      <div class="work-card reveal">
+        <div class="work-thumb">
+          <img src="work3.jpg" alt="Burning">
+        </div>
+        <div class="work-body">
+          <div class="work-tag">// RENDER · BLENDER · PHOTOSHOP</div>
+          <div class="work-title">Burning</div>
+          <div class="work-desc">Художественный рендер, созданный в Blender с финальной обработкой в Photoshop.</div>
+          <a href="https://www.artstation.com/artwork/wr9EwO" target="_blank" class="work-link">ПОДРОБНЕЕ НА ARTSTATION ↗</a>
+        </div>
+      </div>
+
+      <div class="work-card reveal">
+        <div class="work-thumb">
+          <img src="work4.jpg" alt="Four Horsemen of New Year's Laziness">
+        </div>
+        <div class="work-body">
+          <div class="work-tag">// CHARACTER · BLENDER · PHOTOSHOP</div>
+          <div class="work-title">Four Horsemen of New Year's Laziness</div>
+          <div class="work-desc">Серия из четырёх персонажей — ироничный взгляд на новогодние обещания. Blender + Photoshop.</div>
+          <a href="https://www.artstation.com/artwork/3EZwmY" target="_blank" class="work-link">ПОДРОБНЕЕ НА ARTSTATION ↗</a>
+        </div>
+      </div>
+
+    </div>
+    <div class="carousel-controls">
+      <button class="carousel-btn" id="prev" aria-label="Назад">&#8592;</button>
+      <button class="carousel-btn" id="next" aria-label="Вперёд">&#8594;</button>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about">
+  <div class="section-label">// 02 — ABOUT & CV</div>
+  <h2 class="section-title reveal">ЗНАКОМСТВО</h2>
+  <div class="about-grid">
+
+    <!-- ID CARD -->
+    <div class="reveal">
+      <div class="id-card">
+        <div class="id-card-header">
+          <div class="id-card-sys">
+            [PORTFOLIO SYSTEMS]<br>
+            ARTIST — IDENTIFICATION<br>
+            UNIT-3D · VERIFIED
+          </div>
+          <div class="id-card-logo">MARS FBX<span>ARTIST</span></div>
+        </div>
+        <div class="id-card-body">
+          <div class="id-photo">
+            <!-- Вставь своё фото: <img src="images/photo.jpg" alt="Mariia Stepanova"> -->
+            <div class="id-photo-placeholder">ВСТАВЬ<br>ФОТО<br>img src=<br>"images/<br>photo.jpg"</div>
+          </div>
+          <div class="id-fields">
+            <div class="id-field">
+              <div class="id-field-label">Surname · Фамилия</div>
+              <div class="id-field-value">STEPANOVA</div>
+            </div>
+            <div class="id-field">
+              <div class="id-field-label">Given name · Имя</div>
+              <div class="id-field-value">MARIIA</div>
+            </div>
+            <div class="id-field">
+              <div class="id-field-label">Occupation · Профессия</div>
+              <div class="id-field-value big">3D ARTIST</div>
+            </div>
+          </div>
+        </div>
+        <div class="id-card-footer">
+          <div class="id-dob">Date of birth · 04.12.2001<br>ID · MARSFBX-3D-ARTIST-001</div>
+          <div class="id-nfc"></div>
+        </div>
+      </div>
+      <div class="id-card-note">
+        // Карточка в разработке — скоро здесь появится 3D-модель ✦
+      </div>
+    </div>
+
+    <!-- ABOUT TEXT -->
+    <div class="about-content reveal">
+      <p class="about-bio">
+        Привет, я <strong>Mariia Stepanova</strong> — 3D-художник под ником <strong>MARS_FBX</strong>.
+        Создаю персонажей, окружение и пропсы для игр, анимации и визуализации.
+        Работаю с полным циклом: от скетча и скульпта до текстурирования и финального рендера.
+        <!-- Замени этот текст на свой — расскажи о себе, своём опыте и интересах -->
+      </p>
+
+      <div class="skills-grid">
+        <div class="skill-item">Blender</div>
+        <div class="skill-item">ZBrush</div>
+        <div class="skill-item">Substance Painter</div>
+        <div class="skill-item">Unreal Engine</div>
+        <div class="skill-item">Marmoset Toolbag</div>
+        <div class="skill-item">Photoshop</div>
+      </div>
+
+      <div class="cv-stats">
+        <div class="cv-stat">
+          <div class="cv-stat-num">3+</div>
+          <div class="cv-stat-label">ГОДА ОПЫТА</div>
+        </div>
+        <div class="cv-stat">
+          <div class="cv-stat-num">20+</div>
+          <div class="cv-stat-label">ПРОЕКТОВ</div>
+        </div>
+        <div class="cv-stat">
+          <div class="cv-stat-num">∞</div>
+          <div class="cv-stat-label">КОФЕ ВЫПИТО</div>
+        </div>
+      </div>
+
+      <div class="social-links">
+        <a href="https://www.artstation.com/marsfbx" target="_blank" class="social-link">ARTSTATION ↗</a>
+        <a href="https://www.linkedin.com/in/marsfbx" target="_blank" class="social-link">LINKEDIN ↗</a>
+        <a href="https://t.me/Mars_fbx" target="_blank" class="social-link">TELEGRAM ↗</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- CONTACTS -->
+<section id="contacts">
+  <div class="section-label">// 03 — CONTACT</div>
+  <h2 class="section-title reveal">СВЯЗАТЬСЯ</h2>
+  <div class="contact-grid">
+    <div class="reveal">
+      <div class="contact-tagline">
+        Открыта к<br><span class="blue">интересным<br>проектам</span>
+      </div>
+      <div class="contact-info">
+        <div>TELEGRAM &nbsp;&nbsp;<a href="https://t.me/Mars_fbx" target="_blank">@Mars_fbx</a></div>
+        <div>ARTSTATION &nbsp;&nbsp;<a href="https://www.artstation.com/marsfbx" target="_blank">artstation.com/marsfbx</a></div>
+        <div>LINKEDIN &nbsp;&nbsp;<a href="https://www.linkedin.com/in/marsfbx" target="_blank">linkedin.com/in/marsfbx</a></div>
+      </div>
+    </div>
+    <div class="reveal">
+      <form class="contact-form" onsubmit="handleSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">// ИМЯ</label>
+          <input type="text" class="form-input" placeholder="Ваше имя" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">// EMAIL</label>
+          <input type="email" class="form-input" placeholder="your@email.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">// СООБЩЕНИЕ</label>
+          <textarea class="form-textarea" placeholder="Расскажите о проекте..."></textarea>
+        </div>
+        <button type="submit" class="form-submit">ОТПРАВИТЬ →</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo"><img src="logo.png" alt="MARS FBX" style="height: 28px; width: auto; filter: brightness(0.5);"></div>
+  <div class="footer-copy">© 2024 MARIIA STEPANOVA · ALL RIGHTS RESERVED</div>
+</footer>
+
+<script>
+  // Cursor
+  const cursor = document.getElementById('cursor');
+  document.addEventListener('mousemove', e => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+  });
+  document.querySelectorAll('a, button, .work-card').forEach(el => {
+    el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+    el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+  });
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 80);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+
+  // Carousel
+  const carousel = document.getElementById('carousel');
+  document.getElementById('next').addEventListener('click', () => {
+    carousel.scrollBy({ left: 380, behavior: 'smooth' });
+  });
+  document.getElementById('prev').addEventListener('click', () => {
+    carousel.scrollBy({ left: -380, behavior: 'smooth' });
+  });
+
+  // Form
+  function handleSubmit(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('.form-submit');
+    btn.textContent = 'ОТПРАВЛЕНО ✓';
+    btn.style.background = '#1a6b3a';
+    btn.style.borderColor = '#1a6b3a';
+    setTimeout(() => {
+      btn.textContent = 'ОТПРАВИТЬ →';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+      e.target.reset();
+    }, 3000);
+  }
+</script>
+</body>
+</html>
